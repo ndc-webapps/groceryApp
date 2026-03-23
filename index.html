@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Grocery Calculator — Mobile Friendly</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#071226; --card:#0b1220; --muted:#9aa7b2; --accent:#06b6d4; --accent-2:#7c3aed;
+    --surface: rgba(255,255,255,0.02);
+    --radius:12px;
+    --gap:12px;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#04101a 140%);-webkit-font-smoothing:antialiased}
+  .app{
+    max-width:1100px;margin:0 auto;padding:14px;min-height:100vh;display:flex;flex-direction:column;gap:14px;
+  }
+
+  /* Header */
+  header{display:flex;align-items:center;gap:12px}
+  .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#021018}
+  h1{font-size:16px;margin:0}
+  .lead{font-size:13px;color:var(--muted);margin:0}
+
+  /* Main card */
+  .card{background:linear-gradient(180deg,var(--surface), rgba(255,255,255,0.01));border-radius:var(--radius);padding:12px;border:1px solid rgba(255,255,255,0.03);display:flex;gap:12px}
+  /* Two-column on wide screens */
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:12px}
+  /* Left column */
+  .left{display:flex;flex-direction:column;gap:12px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  select,input,textarea,button{background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.04);padding:10px;border-radius:10px;font-size:15px}
+  select{appearance:none;padding-right:28px}
+  .btn{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#021018;border:none;padding:10px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .item-form{display:grid;grid-template-columns:1fr 84px 120px;gap:8px;align-items:center}
+  .item-form .actions{display:flex;gap:8px;align-items:center}
+  .recent{display:flex;flex-direction:column;gap:8px}
+  .recent-list{display:flex;gap:8px;flex-wrap:wrap}
+  .recent-chip{padding:8px 10px;border-radius:999px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--muted);font-size:14px}
+  .items-list{display:flex;flex-direction:column;gap:10px;max-height:48vh;overflow:auto;padding-right:6px}
+  .item-row{display:flex;gap:10px;align-items:center;padding:10px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
+  .item-row img{width:56px;height:56px;border-radius:8px;object-fit:cover}
+  .item-meta{flex:1;min-width:0}
+  .item-meta b{display:block;font-size:15px}
+  .item-meta small{color:var(--muted);font-size:13px}
+
+  /* Right column summary */
+  .right{display:flex;flex-direction:column;gap:12px;padding:12px;border-radius:var(--radius);background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.03)}
+  .summary-row{display:flex;justify-content:space-between;align-items:end}
+  .total{font-size:20px;font-weight:700}
+  .muted{color:var(--muted);font-size:13px}
+
+  .receipt-drop{border:2px dashed rgba(255,255,255,0.03);padding:12px;border-radius:10px;text-align:center;color:var(--muted);cursor:pointer}
+  .receipt-preview img{height:80px;border-radius:8px;object-fit:cover}
+
+  /* History modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.72);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+  .modal{background:var(--card);padding:14px;border-radius:12px;width:100%;max-width:920px;max-height:92vh;overflow:auto;border:1px solid rgba(255,255,255,0.04)}
+  .history-list{display:flex;flex-direction:column;gap:12px}
+  .history-card{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.03)}
+  .left-thumb{width:120px;height:120px;border-radius:10px;overflow:hidden;background:#071021;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .history-items{margin-top:8px;border-top:1px dashed rgba(255,255,255,0.04);padding-top:8px}
+
+  /* Viewer modal */
+  .viewer-img{max-width:100%;max-height:70vh;border-radius:8px;display:block;margin:0 auto}
+
+  /* Sticky action bar for mobile */
+  .action-bar{display:none;position:fixed;left:0;right:0;bottom:0;padding:10px;background:linear-gradient(180deg, rgba(2,6,23,0.9), rgba(2,6,23,0.95));box-shadow:0 -6px 20px rgba(0,0,0,0.6);z-index:70;gap:8px;justify-content:space-between;align-items:center}
+  .action-bar .btn{flex:1;padding:12px;border-radius:10px;font-size:16px}
+
+  /* Icons */
+  .icon{width:40px;height:40px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--muted);background:transparent}
+  .icon:hover{background:rgba(255,255,255,0.02);color:#fff}
+
+  /* Responsive rules */
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr}
+    .card{padding:10px}
+    .right{order:2}
+    .action-bar{display:flex}
+    .modal{max-width:640px}
+    .item-form{grid-template-columns:1fr 84px;grid-auto-rows:auto}
+    .item-form .actions{grid-column:1/-1;display:flex;gap:8px}
+    .item-form input, .item-form button{font-size:16px;padding:12px}
+    .recent-chip{font-size:15px;padding:10px 12px}
+    .item-row img{width:56px;height:56px}
+  }
+  @media (max-width:420px){
+    h1{font-size:15px}
+    .logo{width:40px;height:40px}
+    .item-row img{width:48px;height:48px}
+    .item-form input, .item-form button{font-size:15px;padding:10px}
+    .modal{padding:12px}
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">GC</div>
+      <div>
+        <h1>Grocery Calculator</h1>
+        <div class="lead">Plan spend, attach receipts, save history, export PDF</div>
+      </div>
+    </header>
+
+    <div class="card layout" role="main">
+      <!-- Left column -->
+      <div class="left">
+        <div class="controls" aria-label="Store controls">
+          <label class="muted" for="storeSelect">Store</label>
+          <select id="storeSelect" aria-label="Select store"></select>
+          <input id="newStoreName" placeholder="New store name" aria-label="New store name" />
+          <button id="addStoreBtn" class="btn">Add Store</button>
+          <button id="delStoreBtn" class="btn ghost">Delete</button>
+          <button id="viewHistoryBtn" class="btn ghost">History</button>
+        </div>
+
+        <div class="item-form" role="form" aria-label="Add item">
+          <input id="itemName" list="savedItemsDatalist" type="text" placeholder="Item name e.g., Banana" autocomplete="off" aria-label="Item name" />
+          <input id="itemQty" type="number" min="1" value="1" aria-label="Quantity" />
+          <input id="itemPrice" type="number" min="0" step="0.01" placeholder="Unit price" aria-label="Unit price" />
+          <div class="actions">
+            <input id="itemPhotoHidden" type="file" accept="image/*" style="display:none" />
+            <button id="attachPhotoBtn" class="btn ghost" title="Attach photo">📷</button>
+            <button id="addItemBtn" class="btn">Add Item</button>
+          </div>
+          <datalist id="savedItemsDatalist"></datalist>
+        </div>
+
+        <div class="recent">
+          <h4 style="margin:0">Recent purchases</h4>
+          <div id="recentList" class="recent-list" aria-live="polite"></div>
+        </div>
+
+        <div id="itemsList" class="items-list" aria-live="polite"></div>
+      </div>
+
+      <!-- Right column -->
+      <aside class="right" aria-labelledby="summary-heading">
+        <div class="summary-row">
+          <div>
+            <div class="muted">Overall Total</div>
+            <div id="overallTotal" class="total">₱0.00</div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted">Items</div>
+            <div id="itemCount" style="font-weight:700">0</div>
+          </div>
+        </div>
+
+        <div>
+          <label class="muted">Budget (optional)</label>
+          <input id="budgetInput" type="number" placeholder="₱1000" />
+          <div style="display:flex;justify-content:space-between;margin-top:8px">
+            <div class="muted">Remaining</div>
+            <div id="remaining" class="muted">₱0.00</div>
+          </div>
+        </div>
+
+        <div>
+          <label class="muted">Upload receipt</label>
+          <div id="receiptDrop" class="receipt-drop" tabindex="0">Drag receipt here or tap to upload</div>
+          <div id="receiptPreview" class="receipt-preview" style="margin-top:8px"></div>
+        </div>
+
+        <div>
+          <label class="muted">Session Notes</label>
+          <textarea id="sessionNotes" placeholder="Optional notes" style="width:100%;min-height:80px;padding:10px;border-radius:10px"></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <button id="completeBtn" class="btn" style="flex:1">Complete</button>
+          <button id="clearSession" class="btn ghost">Clear</button>
+        </div>
+      </aside>
+    </div>
+
+    <footer style="font-size:13px;color:var(--muted)">Tip: Complete a session to save it to history. Tap a receipt in History to view or replace it.</footer>
+  </div>
+
+  <!-- Complete modal -->
+  <div id="completeModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="completeTitle">
+      <h3 id="completeTitle">Complete Purchase</h3>
+      <p class="muted">Attach a receipt and add notes (optional). Save with or without receipt.</p>
+
+      <div style="margin-top:8px">
+        <label class="muted">Upload receipt (optional)</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <input id="completeReceiptFile" type="file" accept="image/*" />
+          <div id="completeReceiptPreview" style="min-width:80px"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label class="muted">Notes (optional)</label>
+        <textarea id="completeNotes" placeholder="Add notes about this trip" style="width:100%;min-height:80px;padding:10px;border-radius:8px"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button id="completeCancel" class="btn ghost">Cancel</button>
+        <button id="completeSkip" class="btn ghost">Save Without Receipt</button>
+        <button id="completeSave" class="btn">Save and Attach</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History modal -->
+  <div id="historyModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+      <h3 id="historyTitle">Purchase History</h3>
+      <p class="muted" id="historySubtitle">Showing history for selected store</p>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <button id="historyRefresh" class="btn ghost">Refresh</button>
+        <button id="historyClear" class="btn ghost">Clear History</button>
+        <div style="margin-left:auto;color:var(--muted)">Tap the PDF icon to download a record</div>
+      </div>
+
+      <div id="historyList" class="history-list"></div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <button id="historyClose" class="btn ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Mobile-friendly Grocery Calculator
+   - Preserves previous features: store add/lock rules, required fields, recent dedupe, complete modal, history PDF-only, receipt viewer/replace.
+   - Responsive layout and touch-friendly controls.
+*/
+
+/* Basic storage and helpers */
+const { jsPDF } = window.jspdf || { jsPDF: null };
+const LS_KEY = 'gc_mobile_v1';
+let data = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+if(!data.stores) data.stores = {};
+if(!data.sessions) data.sessions = {};
+if(!data.history) data.history = {};
+if(!data.recent) data.recent = {};
+
+function saveData(){ localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+function uid(prefix='id'){ return prefix + Math.random().toString(36).slice(2,9); }
+
+/* Elements */
+const storeSelect = document.getElementById('storeSelect');
+const addStoreBtn = document.getElementById('addStoreBtn');
+const delStoreBtn = document.getElementById('delStoreBtn');
+const viewHistoryBtn = document.getElementById('viewHistoryBtn');
+const newStoreName = document.getElementById('newStoreName');
+
+const itemName = document.getElementById('itemName');
+const itemQty = document.getElementById('itemQty');
+const itemPrice = document.getElementById('itemPrice');
+const attachPhotoBtn = document.getElementById('attachPhotoBtn');
+const itemPhotoHidden = document.getElementById('itemPhotoHidden');
+const addItemBtn = document.getElementById('addItemBtn');
+
+const itemsList = document.getElementById('itemsList');
+const overallTotal = document.getElementById('overallTotal');
+const itemCount = document.getElementById('itemCount');
+
+const budgetInput = document.getElementById('budgetInput');
+const remaining = document.getElementById('remaining');
+
+const receiptDrop = document.getElementById('receiptDrop');
+const receiptPreview = document.getElementById('receiptPreview');
+const sessionNotes = document.getElementById('sessionNotes');
+const clearSession = document.getElementById('clearSession');
+
+const completeBtn = document.getElementById('completeBtn');
+const completeModal = document.getElementById('completeModal');
+const completeReceiptFile = document.getElementById('completeReceiptFile');
+const completeReceiptPreview = document.getElementById('completeReceiptPreview');
+const completeNotes = document.getElementById('completeNotes');
+const completeSave = document.getElementById('completeSave');
+const completeSkip = document.getElementById('completeSkip');
+const completeCancel = document.getElementById('completeCancel');
+
+const historyModal = document.getElementById('historyModal');
+const historyList = document.getElementById('historyList');
+const historyClose = document.getElementById('historyClose');
+const historyClear = document.getElementById('historyClear');
+const historyRefresh = document.getElementById('historyRefresh');
+const historySubtitle = document.getElementById('historySubtitle');
+
+const recentList = document.getElementById('recentList');
+const savedDatalist = document.getElementById('savedItemsDatalist');
+
+let currentStoreId = null;
+let currentPhotoFile = null;
+
+/* Normalize storage */
+function normalize(){
+  Object.keys(data.stores).forEach(sid=>{ if(!data.stores[sid].itemsSaved) data.stores[sid].itemsSaved = {}; });
+  Object.keys(data.sessions).forEach(sid=>{ if(!data.sessions[sid].items) data.sessions[sid].items = []; });
+  Object.keys(data.history).forEach(sid=>{ if(!Array.isArray(data.history[sid])) data.history[sid] = []; });
+  Object.keys(data.recent).forEach(sid=>{ if(!Array.isArray(data.recent[sid])) data.recent[sid] = []; });
+  saveData();
+}
+
+/* Populate stores and preserve selection */
+function populateStores(){
+  const prev = currentStoreId || '';
+  storeSelect.innerHTML = '';
+  const opt = document.createElement('option'); opt.value=''; opt.textContent='Select store'; storeSelect.appendChild(opt);
+  Object.keys(data.stores).forEach(id=>{
+    const o = document.createElement('option'); o.value = id; o.textContent = data.stores[id].name; storeSelect.appendChild(o);
+  });
+  storeSelect.value = prev;
+  renderSavedDatalist();
+  renderRecent();
+}
+
+/* Add store */
+addStoreBtn.addEventListener('click', ()=>{
+  const name = newStoreName.value.trim();
+  if(!name) return alert('Enter a store name');
+  const id = uid('store_');
+  data.stores[id] = { name, itemsSaved: {} };
+  data.sessions[id] = { items: [], receiptDataUrl: null, notes: '' };
+  data.history[id] = [];
+  data.recent[id] = [];
+  currentStoreId = id;
+  newStoreName.value = '';
+  populateStores(); saveData(); renderSession();
+});
+
+/* Delete store */
+delStoreBtn.addEventListener('click', ()=>{
+  if(!currentStoreId) return alert('Select a store to delete');
+  if(!confirm('Delete store and its saved prices and history?')) return;
+  delete data.stores[currentStoreId];
+  delete data.sessions[currentStoreId];
+  delete data.history[currentStoreId];
+  delete data.recent[currentStoreId];
+  currentStoreId = null;
+  populateStores(); saveData(); renderSession();
+});
+
+/* Store change */
+storeSelect.addEventListener('change', (e)=>{
+  currentStoreId = e.target.value || null;
+  if(currentStoreId && !data.sessions[currentStoreId]) data.sessions[currentStoreId] = { items: [], receiptDataUrl: null, notes: '' };
+  renderSession(); renderRecent();
+});
+
+/* Attach photo for add form */
+attachPhotoBtn.addEventListener('click', ()=> itemPhotoHidden.click());
+itemPhotoHidden.addEventListener('change', (e)=> { currentPhotoFile = e.target.files[0] || null; });
+
+/* Add item with validation and deduped recent */
+addItemBtn.addEventListener('click', ()=>{
+  if(!currentStoreId) return alert('Select or create a store first');
+  const nameRaw = itemName.value.trim();
+  const qty = Number(itemQty.value) || 0;
+  const price = itemPrice.value !== '' ? Number(itemPrice.value) : NaN;
+  if(!nameRaw || qty <= 0 || Number.isNaN(price)) return alert('Enter valid item name, quantity and unit price');
+  const id = uid('it_');
+  const reader = new FileReader();
+  const addToSession = (photoDataUrl=null) => {
+    const item = { id, name: nameRaw, qty, price, photoDataUrl };
+    data.sessions[currentStoreId].items.push(item);
+
+    addRecentUnique(currentStoreId, nameRaw, price, photoDataUrl);
+
+    saveData(); renderSession(); renderRecent(); populateStores();
+
+    itemName.value=''; itemQty.value='1'; itemPrice.value=''; currentPhotoFile=null; itemPhotoHidden.value='';
+  };
+  if(currentPhotoFile){
+    reader.onload = ()=> addToSession(reader.result);
+    reader.readAsDataURL(currentPhotoFile);
+  } else {
+    addToSession(null);
+  }
+});
+
+/* Recent dedupe: update existing or add new and move to front */
+function addRecentUnique(storeId, name, price, photoDataUrl){
+  if(!storeId) return;
+  if(!data.recent[storeId]) data.recent[storeId] = [];
+  const key = name.trim().toLowerCase();
+  const arr = data.recent[storeId];
+  const idx = arr.findIndex(r => (r.name || '').trim().toLowerCase() === key);
+  if(idx !== -1){
+    arr[idx].price = price;
+    if(photoDataUrl) arr[idx].photoDataUrl = photoDataUrl;
+    const entry = arr.splice(idx,1)[0];
+    arr.unshift(entry);
+  } else {
+    arr.unshift({ name, price, photoDataUrl });
+    if(arr.length > 8) arr.length = 8;
+  }
+}
+
+/* Render recent list */
+function renderRecent(){
+  recentList.innerHTML = '';
+  if(!currentStoreId){ recentList.innerHTML = '<div class="muted">No store selected</div>'; return; }
+  const arr = data.recent[currentStoreId] || [];
+  if(arr.length === 0){ recentList.innerHTML = '<div class="muted">No recent items</div>'; return; }
+  arr.forEach(r=>{
+    const chip = document.createElement('div'); chip.className = 'recent-chip';
+    chip.textContent = `${r.name} • ₱${Number(r.price).toFixed(2)}`;
+    chip.title = 'Tap to prefill';
+    chip.addEventListener('click', ()=>{
+      itemName.value = r.name;
+      itemPrice.value = r.price;
+      itemQty.value = 1;
+      itemQty.focus();
+    });
+    recentList.appendChild(chip);
+  });
+}
+
+/* Render saved datalist for autofill */
+function renderSavedDatalist(){
+  savedDatalist.innerHTML = '';
+  if(!currentStoreId) return;
+  const saved = data.stores[currentStoreId].itemsSaved || {};
+  Object.keys(saved).sort().forEach(n=>{
+    const opt = document.createElement('option'); opt.value = n; savedDatalist.appendChild(opt);
+  });
+}
+
+/* Render session items */
+function renderSession(){
+  itemsList.innerHTML = '';
+  if(!currentStoreId){
+    itemsList.innerHTML = '<div class="muted" style="padding:12px">No store selected. Create or choose a store to start.</div>';
+    overallTotal.textContent = '₱0.00'; itemCount.textContent = '0'; receiptPreview.innerHTML=''; sessionNotes.value='';
+    return;
+  }
+  const session = data.sessions[currentStoreId] || { items: [], receiptDataUrl:null, notes:'' };
+  session.items.forEach(it=>{
+    const row = document.createElement('div'); row.className='item-row';
+    const img = document.createElement('img'); img.src = it.photoDataUrl || 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#071021"/></svg>`);
+    img.alt = it.name;
+    const meta = document.createElement('div'); meta.className='item-meta';
+    const title = document.createElement('b'); title.textContent = it.name;
+    const small = document.createElement('small'); small.innerHTML = `${it.qty} × ₱${Number(it.price).toFixed(2)}  =  ₱${(it.qty*it.price).toFixed(2)}`;
+    meta.appendChild(title); meta.appendChild(small);
+    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+    const delBtn = document.createElement('button'); delBtn.className='icon'; delBtn.textContent='🗑️';
+    delBtn.addEventListener('click', ()=> {
+      if(confirm(`Delete "${it.name}"?`)){
+        data.sessions[currentStoreId].items = data.sessions[currentStoreId].items.filter(x=>x.id!==it.id);
+        saveData(); renderSession();
+      }
+    });
+    actions.appendChild(delBtn);
+    row.appendChild(img); row.appendChild(meta); row.appendChild(actions);
+    itemsList.appendChild(row);
+  });
+  const total = session.items.reduce((s,i)=> s + (i.qty * i.price), 0);
+  overallTotal.textContent = `₱${total.toFixed(2)}`;
+  itemCount.textContent = session.items.length;
+  receiptPreview.innerHTML = '';
+  if(session.receiptDataUrl){
+    const img = document.createElement('img'); img.src = session.receiptDataUrl; img.style.height='80px'; img.style.borderRadius='8px';
+    receiptPreview.appendChild(img);
+  }
+}
+
+/* Budget update */
+budgetInput?.addEventListener('input', ()=>{
+  const budget = Number(budgetInput.value) || 0;
+  const total = (currentStoreId && data.sessions[currentStoreId]) ? data.sessions[currentStoreId].items.reduce((s,i)=> s + (i.qty * i.price), 0) : 0;
+  const rem = budget - total;
+  remaining.textContent = `₱${rem.toFixed(2)}`;
+});
+
+/* Receipt upload for session */
+receiptDrop.addEventListener('click', ()=> {
+  if(!currentStoreId) return alert('Select a store first');
+  const f = document.createElement('input'); f.type='file'; f.accept='image/*'; f.onchange = e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const r = new FileReader();
+    r.onload = ()=> {
+      data.sessions[currentStoreId].receiptDataUrl = r.result; saveData(); renderSession();
+    };
+    r.readAsDataURL(file);
+  }; f.click();
+});
+
+/* Session notes */
+sessionNotes.addEventListener('input', ()=> {
+  if(!currentStoreId) return;
+  data.sessions[currentStoreId].notes = sessionNotes.value; saveData();
+});
+
+/* Clear session */
+clearSession.addEventListener('click', ()=>{
+  if(!currentStoreId) return alert('Select a store first');
+  if(!confirm('Clear all items and receipt for this store session?')) return;
+  data.sessions[currentStoreId] = { items: [], receiptDataUrl: null, notes: '' };
+  saveData(); renderSession();
+});
+
+/* COMPLETE flow: modal prompt restored */
+completeBtn.addEventListener('click', ()=>{
+  if(!currentStoreId) return alert('Select a store first');
+  const session = data.sessions[currentStoreId] || { items: [] };
+  if(!session.items || session.items.length === 0) return alert('No items in session to complete');
+  completeReceiptFile.value = '';
+  completeReceiptPreview.innerHTML = '';
+  completeNotes.value = session.notes || '';
+  completeModal.style.display = 'flex';
+  completeModal.setAttribute('aria-hidden','false');
+});
+
+/* Preview selected file in complete modal */
+completeReceiptFile.addEventListener('change', (e)=>{
+  const f = e.target.files[0];
+  if(!f) { completeReceiptPreview.innerHTML = ''; return; }
+  const r = new FileReader();
+  r.onload = ()=> {
+    completeReceiptPreview.innerHTML = `<img src="${r.result}" style="max-width:120px;border-radius:8px" />`;
+  };
+  r.readAsDataURL(f);
+});
+
+/* Complete modal actions */
+completeCancel.addEventListener('click', ()=> {
+  completeModal.style.display = 'none';
+  completeModal.setAttribute('aria-hidden','true');
+});
+completeSave.addEventListener('click', ()=> finalizeComplete(true));
+completeSkip.addEventListener('click', ()=> finalizeComplete(false));
+
+function finalizeComplete(useAttachment){
+  if(!currentStoreId) return;
+  const session = data.sessions[currentStoreId] || { items: [] };
+  if(!session.items || session.items.length === 0) { alert('No items to save'); return; }
+
+  const reader = new FileReader();
+  const doSave = (receiptDataUrl) => {
+    const total = session.items.reduce((s,i)=> s + (i.qty * i.price), 0);
+    const record = {
+      id: uid('hist_'),
+      timestamp: new Date().toISOString(),
+      items: JSON.parse(JSON.stringify(session.items)),
+      total,
+      receiptDataUrl: receiptDataUrl || null,
+      notes: completeNotes.value || ''
+    };
+    if(!data.history[currentStoreId]) data.history[currentStoreId] = [];
+    data.history[currentStoreId].unshift(record);
+    data.sessions[currentStoreId] = { items: [], receiptDataUrl: null, notes: '' };
+    saveData();
+    completeModal.style.display = 'none';
+    completeModal.setAttribute('aria-hidden','true');
+    renderSession();
+    alert('Purchase saved to history');
+  };
+
+  if(useAttachment && completeReceiptFile.files && completeReceiptFile.files[0]){
+    const f = completeReceiptFile.files[0];
+    reader.onload = ()=> doSave(reader.result);
+    reader.readAsDataURL(f);
+  } else {
+    doSave(null);
+  }
+}
+
+/* History modal open/close */
+viewHistoryBtn.addEventListener('click', ()=>{
+  if(!currentStoreId) return alert('Select a store first');
+  historyModal.style.display = 'flex';
+  historyModal.setAttribute('aria-hidden','false');
+  renderHistory();
+});
+historyClose.addEventListener('click', ()=> {
+  historyModal.style.display = 'none';
+  historyModal.setAttribute('aria-hidden','true');
+});
+historyRefresh.addEventListener('click', renderHistory);
+historyClear.addEventListener('click', ()=>{
+  if(!currentStoreId) return;
+  if(!confirm('Clear all history for this store?')) return;
+  data.history[currentStoreId] = [];
+  saveData(); renderHistory();
+});
+
+/* Render history with PDF-only export and replace/upload receipt */
+function renderHistory(){
+  historyList.innerHTML = '';
+  historySubtitle.textContent = `Showing history for ${data.stores[currentStoreId]?.name || 'selected store'}`;
+  const arr = data.history[currentStoreId] || [];
+  if(arr.length === 0){
+    historyList.innerHTML = '<div class="muted"><strong>No completed purchases yet</strong><div style="margin-top:8px;color:var(--muted)">Complete a session to save it here. You can then download PDF for each record.</div></div>';
+    return;
+  }
+  arr.forEach(rec=>{
+    const card = document.createElement('div'); card.className = 'history-card';
+    const left = document.createElement('div'); left.className = 'left-thumb';
+    if(rec.receiptDataUrl){
+      const img = document.createElement('img'); img.src = rec.receiptDataUrl; img.style.width='120px'; img.style.height='120px'; img.style.objectFit='cover'; img.style.borderRadius='8px'; img.style.cursor='pointer';
+      img.alt = 'Receipt thumbnail';
+      img.addEventListener('click', ()=> openViewer(rec.id));
+      left.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.style.width='120px'; placeholder.style.height='120px'; placeholder.style.display='flex'; placeholder.style.alignItems='center'; placeholder.style.justifyContent='center';
+      placeholder.textContent = 'No Receipt';
+      left.appendChild(placeholder);
+    }
+    const meta = document.createElement('div'); meta.style.flex='1';
+    const title = document.createElement('div'); title.style.display='flex'; title.style.justifyContent='space-between';
+    title.innerHTML = `<strong>${new Date(rec.timestamp).toLocaleString()}</strong><div style="font-weight:700">₱${Number(rec.total).toFixed(2)}</div>`;
+    const notes = document.createElement('div'); notes.className='muted'; notes.style.marginTop='8px'; notes.textContent = rec.notes || '';
+    const itemsWrap = document.createElement('div'); itemsWrap.className='history-items';
+
+    rec.items.forEach(it=>{
+      const line = document.createElement('div');
+      line.style.display='flex'; line.style.justifyContent='space-between'; line.style.padding='6px 0';
+      const leftSpan = document.createElement('div'); leftSpan.textContent = `${it.name}:`;
+      const middleSpan = document.createElement('div'); middleSpan.className='muted'; middleSpan.textContent = `${it.qty} × ₱${Number(it.price).toFixed(2)}`;
+      const rightSpan = document.createElement('div'); rightSpan.style.fontWeight='700'; rightSpan.textContent = `₱${(it.qty * it.price).toFixed(2)}`;
+      line.appendChild(leftSpan); line.appendChild(middleSpan); line.appendChild(rightSpan);
+      itemsWrap.appendChild(line);
+    });
+
+    meta.appendChild(title); meta.appendChild(notes); meta.appendChild(itemsWrap);
+
+    const controls = document.createElement('div'); controls.style.display='flex'; controls.style.flexDirection='column'; controls.style.gap='8px';
+    // PDF icon only
+    const pdfBtn = document.createElement('div'); pdfBtn.className = 'icon'; pdfBtn.title = 'Download PDF'; pdfBtn.innerHTML = '📄';
+    pdfBtn.addEventListener('click', ()=> exportHistoryPDF(rec));
+    controls.appendChild(pdfBtn);
+
+    // Upload/replace receipt control
+    const uploadBtn = document.createElement('div'); uploadBtn.className = 'icon'; uploadBtn.title = rec.receiptDataUrl ? 'Replace receipt' : 'Upload receipt';
+    uploadBtn.innerHTML = rec.receiptDataUrl ? '🔁' : '📤';
+    uploadBtn.addEventListener('click', ()=> uploadReceiptForHistory(rec.id));
+    controls.appendChild(uploadBtn);
+
+    card.appendChild(left); card.appendChild(meta); card.appendChild(controls);
+    historyList.appendChild(card);
+  });
+}
+
+/* Open viewer for a specific history record (larger view) */
+function openViewer(recordId){
+  const arr = data.history[currentStoreId] || [];
+  const rec = arr.find(r=>r.id === recordId);
+  if(!rec) return alert('Record not found');
+  if(rec.receiptDataUrl){
+    const w = window.open();
+    w.document.body.style.background = '#111';
+    const img = w.document.createElement('img'); img.src = rec.receiptDataUrl; img.style.maxWidth='100%'; img.style.height='auto'; img.style.display='block'; img.style.margin='20px auto';
+    w.document.body.appendChild(img);
+    const btn = w.document.createElement('button'); btn.textContent = 'Replace Receipt'; btn.style.display='block'; btn.style.margin='10px auto'; btn.style.padding='8px 12px';
+    btn.addEventListener('click', ()=> {
+      const f = w.document.createElement('input'); f.type='file'; f.accept='image/*'; f.onchange = e=>{
+        const file = e.target.files[0]; if(!file) return;
+        const r = new FileReader(); r.onload = ()=> {
+          rec.receiptDataUrl = r.result; saveData(); renderHistory(); alert('Receipt replaced'); w.close();
+        }; r.readAsDataURL(file);
+      }; f.click();
+    });
+    w.document.body.appendChild(btn);
+  } else {
+    uploadReceiptForHistory(recordId);
+  }
+}
+
+/* Upload receipt for a specific history record */
+function uploadReceiptForHistory(recordId){
+  const f = document.createElement('input'); f.type='file'; f.accept='image/*';
+  f.onchange = e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const r = new FileReader();
+    r.onload = ()=> {
+      const arr = data.history[currentStoreId] || [];
+      const idx = arr.findIndex(x=>x.id === recordId);
+      if(idx === -1) return alert('Record not found');
+      arr[idx].receiptDataUrl = r.result;
+      saveData();
+      renderHistory();
+      alert('Receipt attached to history record');
+    };
+    r.readAsDataURL(file);
+  };
+  f.click();
+}
+
+/* Export single history record to PDF using jsPDF */
+function exportHistoryPDF(rec){
+  try {
+    if(!jsPDF) throw new Error('PDF library not loaded');
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const margin = 40;
+    let y = margin;
+    const storeName = data.stores[currentStoreId]?.name || 'Store';
+    doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.text(storeName, margin, y); y += 20;
+    doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.text(new Date(rec.timestamp).toLocaleString(), margin, y); y += 18;
+
+    doc.setFontSize(11); doc.setFont(undefined, 'bold');
+    doc.text('Item', margin, y); doc.text('Qty × Unit', 360, y, { align: 'right' }); doc.text('Line Total', 520, y, { align: 'right' });
+    y += 8;
+    doc.setDrawColor(200); doc.setLineWidth(0.5); doc.line(margin, y, 560, y); y += 12;
+    doc.setFont(undefined, 'normal');
+
+    rec.items.forEach(it=>{
+      const lineTotal = (it.qty * it.price);
+      const leftText = `${it.name}:`;
+      const middleText = `${it.qty} × ₱${Number(it.price).toFixed(2)}`;
+      const rightText = `₱${lineTotal.toFixed(2)}`;
+      const splitLeft = doc.splitTextToSize(leftText, 260);
+      doc.text(splitLeft, margin, y);
+      doc.text(middleText, 420, y, { align: 'right' });
+      doc.text(rightText, 520, y, { align: 'right' });
+      y += (splitLeft.length * 12) + 6;
+      if(y > 740){ doc.addPage(); y = margin; }
+    });
+
+    y += 6;
+    doc.setDrawColor(200); doc.line(margin, y, 560, y); y += 14;
+    doc.setFont(undefined, 'bold'); doc.text('Grand Total', 420, y, { align: 'right' }); doc.text(`₱${Number(rec.total).toFixed(2)}`, 520, y, { align: 'right' });
+    y += 20;
+
+    if(rec.notes){
+      doc.setFont(undefined, 'normal'); doc.setFontSize(10);
+      const notes = doc.splitTextToSize(rec.notes, 520);
+      doc.text('Notes:', margin, y); y += 14;
+      doc.text(notes, margin, y);
+      y += notes.length * 12 + 8;
+    }
+
+    if(rec.receiptDataUrl){
+      try {
+        if(y + 200 > 820){ doc.addPage(); y = margin; }
+        doc.addImage(rec.receiptDataUrl, 'JPEG', margin, y, 520, 0);
+      } catch(e){}
+    }
+
+    doc.save(`purchase_${rec.id}.pdf`);
+  } catch (err){
+    alert('PDF export failed: ' + (err.message || err));
+  }
+}
+
+/* Init */
+normalize();
+populateStores();
+renderSession();
+renderRecent();
+
+/* Keyboard shortcuts for desktop */
+itemName.addEventListener('keydown', (e)=> { if(e.key === 'Enter') addItemBtn.click(); });
+itemPrice.addEventListener('keydown', (e)=> { if(e.key === 'Enter') addItemBtn.click(); });
+
+/* Save on unload */
+window.addEventListener('beforeunload', ()=> saveData());
+</script>
+</body>
+</html>
